@@ -141,16 +141,34 @@ func (lc *LibraryController) AddMember() {
 	fmt.Println("Member added successfully!")
 }
 
+func (lc *LibraryController) ReserveBook() {
+	fmt.Print("Enter book ID: ")
+	lc.scanner.Scan()
+	bookID, _ := strconv.Atoi(strings.TrimSpace(lc.scanner.Text()))
+
+	fmt.Print("Enter member ID: ")
+	lc.scanner.Scan()
+	memberID, _ := strconv.Atoi(strings.TrimSpace(lc.scanner.Text()))
+
+	err := lc.library.ReserveBook(bookID, memberID)
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+	} else {
+		fmt.Println("Book reserved successfully! It will be automatically borrowed. Reservation expires in 5 seconds if not borrowed.")
+	}
+}
+
 func (lc *LibraryController) ShowMenu() {
 	fmt.Println("\n=== Library Management System ===")
 	fmt.Println("1. Add Book")
 	fmt.Println("2. Remove Book")
 	fmt.Println("3. Borrow Book")
-	fmt.Println("4. Return Book")
-	fmt.Println("5. List Available Books")
-	fmt.Println("6. List Borrowed Books")
-	fmt.Println("7. Add Member")
-	fmt.Println("8. Exit")
+	fmt.Println("4. Reserve Book")
+	fmt.Println("5. Return Book")
+	fmt.Println("6. List Available Books")
+	fmt.Println("7. List Borrowed Books")
+	fmt.Println("8. Add Member")
+	fmt.Println("9. Exit")
 	fmt.Print("Choose an option: ")
 }
 
@@ -168,14 +186,16 @@ func (lc *LibraryController) Run() {
 		case "3":
 			lc.BorrowBook()
 		case "4":
-			lc.ReturnBook()
+			lc.ReserveBook()
 		case "5":
-			lc.ListAvailableBooks()
+			lc.ReturnBook()
 		case "6":
-			lc.ListBorrowedBooks()
+			lc.ListAvailableBooks()
 		case "7":
-			lc.AddMember()
+			lc.ListBorrowedBooks()
 		case "8":
+			lc.AddMember()
+		case "9":
 			fmt.Println("Exiting...")
 			return
 		default:
