@@ -1,51 +1,67 @@
 package data
 
 import (
+	"context"
 	"errors"
-	"sync"
 	"task5/models"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type TaskService struct {
-	tasks map[int]models.Task
-	mutex sync.RWMutex
-	nextID int
+	collection *mongo.Collection
 }
 
-func NewTaskService() *TaskService {
+func NewTaskService(collection *mongo.Collection) *TaskService {
 	return &TaskService{
-		tasks:  make(map[int]models.Task),
-		nextID: 1,
+		collection: collection,
 	}
 }
 
-func (ts *TaskService) GetAllTasks() []models.Task {
-	ts.mutex.RLock()
-	defer ts.mutex.RUnlock()
+func (ts *TaskService) GetAllTasks() ([]models.Task, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	tasks := make([]models.Task, 0, len(ts.tasks))
-	for _, task := range ts.tasks {
-		tasks = append(tasks, task)
+	cursor, err := ts.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
 	}
-	return tasks
+	defer cursor.Close(ctx)
+
+	var tasks []models.Task
+	if err = cursor.All(ctx, &tasks); err != nil {
+		return nil, err
+	}
+
+	return tasks, nil
 }
 
-func (ts *TaskService) GetTaskByID(id int) (models.Task, error) {
-	ts.mutex.RLock()
-	defer ts.mutex.RUnlock()
-
-	task, exists := ts.tasks[id]
-	if !exists {
-		return models.Task{}, errors.New("task not found")
+func (ts *TaskService) GetTaskByID(id string) (models.Task, error) {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return models.Task{}, errors.New("invalid task ID format")
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var task models.Task
+	err = ts.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&task)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return models.Task{}, errors.New("task not found")
+		}
+		return models.Task{}, err
+	}
+
 	return task, nil
 }
 
-func (ts *TaskService) CreateTask(req models.CreateTaskRequest) models.Task {
-	ts.mutex.Lock()
-	defer ts.mutex.Unlock()
-
+func (ts *TaskService) CreateTask(req models.CreateTaskRequest) (models.Task, error) {
 	now := time.Now()
 	status := req.Status
 	if status == "" {
@@ -53,7 +69,7 @@ func (ts *TaskService) CreateTask(req models.CreateTaskRequest) models.Task {
 	}
 
 	task := models.Task{
-		ID:          ts.nextID,
+		ID:          primitive.NewObjectID(),
 		Title:       req.Title,
 		Description: req.Description,
 		DueDate:     req.DueDate,
@@ -62,49 +78,84 @@ func (ts *TaskService) CreateTask(req models.CreateTaskRequest) models.Task {
 		UpdatedAt:   now,
 	}
 
-	ts.tasks[ts.nextID] = task
-	ts.nextID++
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	return task
-}
-
-func (ts *TaskService) UpdateTask(id int, req models.UpdateTaskRequest) (models.Task, error) {
-	ts.mutex.Lock()
-	defer ts.mutex.Unlock()
-
-	task, exists := ts.tasks[id]
-	if !exists {
-		return models.Task{}, errors.New("task not found")
+	_, err := ts.collection.InsertOne(ctx, task)
+	if err != nil {
+		return models.Task{}, err
 	}
-
-	if req.Title != "" {
-		task.Title = req.Title
-	}
-	if req.Description != "" {
-		task.Description = req.Description
-	}
-	if !req.DueDate.IsZero() {
-		task.DueDate = req.DueDate
-	}
-	if req.Status != "" {
-		task.Status = req.Status
-	}
-
-	task.UpdatedAt = time.Now()
-	ts.tasks[id] = task
 
 	return task, nil
 }
 
-func (ts *TaskService) DeleteTask(id int) error {
-	ts.mutex.Lock()
-	defer ts.mutex.Unlock()
+func (ts *TaskService) UpdateTask(id string, req models.UpdateTaskRequest) (models.Task, error) {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return models.Task{}, errors.New("invalid task ID format")
+	}
 
-	if _, exists := ts.tasks[id]; !exists {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	update := bson.M{}
+	if req.Title != "" {
+		update["title"] = req.Title
+	}
+	if req.Description != "" {
+		update["description"] = req.Description
+	}
+	if !req.DueDate.IsZero() {
+		update["due_date"] = req.DueDate
+	}
+	if req.Status != "" {
+		update["status"] = req.Status
+	}
+	update["updated_at"] = time.Now()
+
+	filter := bson.M{"_id": objectID}
+	updateDoc := bson.M{"$set": update}
+
+	result := ts.collection.FindOneAndUpdate(
+		ctx,
+		filter,
+		updateDoc,
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+
+	if result.Err() != nil {
+		if result.Err() == mongo.ErrNoDocuments {
+			return models.Task{}, errors.New("task not found")
+		}
+		return models.Task{}, result.Err()
+	}
+
+	var task models.Task
+	if err := result.Decode(&task); err != nil {
+		return models.Task{}, err
+	}
+
+	return task, nil
+}
+
+func (ts *TaskService) DeleteTask(id string) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid task ID format")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := ts.collection.DeleteOne(ctx, bson.M{"_id": objectID})
+	if err != nil {
+		return err
+	}
+
+	if result.DeletedCount == 0 {
 		return errors.New("task not found")
 	}
 
-	delete(ts.tasks, id)
 	return nil
 }
 

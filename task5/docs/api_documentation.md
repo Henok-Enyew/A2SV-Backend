@@ -2,9 +2,60 @@
 
 ## Overview
 
-This is a RESTful API for managing tasks built with Go and Gin Framework. The API provides endpoints for creating, reading, updating, and deleting tasks.
+This is a RESTful API for managing tasks built with Go and Gin Framework with MongoDB as the persistent data storage. The API provides endpoints for creating, reading, updating, and deleting tasks. All data is persisted in MongoDB, ensuring data availability across API restarts.
 
 **Base URL**: `http://localhost:8080`
+
+## MongoDB Integration
+
+This API uses MongoDB for persistent data storage. Tasks are stored in a MongoDB collection with automatic ObjectID generation for unique identifiers.
+
+### Prerequisites
+
+- MongoDB instance running (local or cloud)
+- Go 1.19 or higher
+- MongoDB Go Driver (automatically installed via `go mod tidy`)
+
+### MongoDB Setup
+
+#### Local MongoDB Setup
+
+1. Install MongoDB Community Edition from [MongoDB Download Center](https://www.mongodb.com/try/download/community)
+2. Start MongoDB service:
+   ```bash
+   # On Linux/Mac
+   mongod
+   
+   # On Windows (as Administrator)
+   net start MongoDB
+   ```
+3. MongoDB will run on `mongodb://localhost:27017` by default
+
+#### MongoDB Atlas (Cloud) Setup
+
+1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a new cluster
+3. Get your connection string from the Atlas dashboard
+4. Set the `MONGODB_URI` environment variable with your connection string
+
+### Configuration
+
+The API can be configured using environment variables:
+
+- `MONGODB_URI`: MongoDB connection URI (default: `mongodb://localhost:27017`)
+- `MONGODB_DB`: Database name (default: `task_manager`)
+
+Example:
+```bash
+export MONGODB_URI="mongodb://localhost:27017"
+export MONGODB_DB="task_manager"
+```
+
+Or for MongoDB Atlas:
+```bash
+export MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority"
+export MONGODB_DB="task_manager"
+```
 
 ## Endpoints
 
@@ -22,7 +73,7 @@ Retrieve a list of all tasks.
   "status": "success",
   "data": [
     {
-      "id": 1,
+      "id": "507f1f77bcf86cd799439011",
       "title": "Complete project",
       "description": "Finish the task management API",
       "due_date": "2024-12-31T00:00:00Z",
@@ -37,6 +88,7 @@ Retrieve a list of all tasks.
 
 **Status Codes**:
 - `200 OK`: Successfully retrieved tasks
+- `500 Internal Server Error`: Database error occurred
 
 ---
 
@@ -47,7 +99,7 @@ Retrieve details of a specific task.
 **Endpoint**: `GET /tasks/:id`
 
 **Parameters**:
-- `id` (path parameter): Task ID (integer)
+- `id` (path parameter): Task ID (MongoDB ObjectID as string, e.g., "507f1f77bcf86cd799439011")
 
 **Request**: No request body required
 
@@ -56,7 +108,7 @@ Retrieve details of a specific task.
 {
   "status": "success",
   "data": {
-    "id": 1,
+    "id": "507f1f77bcf86cd799439011",
     "title": "Complete project",
     "description": "Finish the task management API",
     "due_date": "2024-12-31T00:00:00Z",
@@ -69,8 +121,9 @@ Retrieve details of a specific task.
 
 **Status Codes**:
 - `200 OK`: Task found
-- `400 Bad Request`: Invalid task ID format
+- `400 Bad Request`: Invalid task ID format (not a valid ObjectID)
 - `404 Not Found`: Task not found
+- `500 Internal Server Error`: Database error occurred
 
 **Error Response**:
 ```json
@@ -110,7 +163,7 @@ Create a new task.
   "status": "success",
   "message": "task created successfully",
   "data": {
-    "id": 1,
+    "id": "507f1f77bcf86cd799439011",
     "title": "Complete project",
     "description": "Finish the task management API",
     "due_date": "2024-12-31T00:00:00Z",
@@ -124,6 +177,7 @@ Create a new task.
 **Status Codes**:
 - `201 Created`: Task created successfully
 - `400 Bad Request`: Invalid request body or validation error
+- `500 Internal Server Error`: Database error occurred
 
 **Error Response**:
 ```json
@@ -143,7 +197,7 @@ Update an existing task.
 **Endpoint**: `PUT /tasks/:id`
 
 **Parameters**:
-- `id` (path parameter): Task ID (integer)
+- `id` (path parameter): Task ID (MongoDB ObjectID as string)
 
 **Request Body**:
 ```json
@@ -167,7 +221,7 @@ Update an existing task.
   "status": "success",
   "message": "task updated successfully",
   "data": {
-    "id": 1,
+    "id": "507f1f77bcf86cd799439011",
     "title": "Updated task title",
     "description": "Updated description",
     "due_date": "2024-12-31T00:00:00Z",
@@ -180,8 +234,9 @@ Update an existing task.
 
 **Status Codes**:
 - `200 OK`: Task updated successfully
-- `400 Bad Request`: Invalid request body or task ID
+- `400 Bad Request`: Invalid request body or task ID format
 - `404 Not Found`: Task not found
+- `500 Internal Server Error`: Database error occurred
 
 **Error Response**:
 ```json
@@ -200,7 +255,7 @@ Delete a task.
 **Endpoint**: `DELETE /tasks/:id`
 
 **Parameters**:
-- `id` (path parameter): Task ID (integer)
+- `id` (path parameter): Task ID (MongoDB ObjectID as string)
 
 **Request**: No request body required
 
@@ -214,8 +269,9 @@ Delete a task.
 
 **Status Codes**:
 - `200 OK`: Task deleted successfully
-- `400 Bad Request`: Invalid task ID format
+- `400 Bad Request`: Invalid task ID format (not a valid ObjectID)
 - `404 Not Found`: Task not found
+- `500 Internal Server Error`: Database error occurred
 
 **Error Response**:
 ```json
@@ -254,9 +310,20 @@ Additional error details may be included in the `error` field for validation err
 
 ## Running the API
 
-1. Install dependencies:
+### Prerequisites
+
+1. Ensure MongoDB is running (local or cloud)
+2. Install Go dependencies:
 ```bash
 go mod tidy
+```
+
+### Running the Server
+
+1. Set environment variables (optional, defaults provided):
+```bash
+export MONGODB_URI="mongodb://localhost:27017"
+export MONGODB_DB="task_manager"
 ```
 
 2. Run the server:
@@ -264,7 +331,36 @@ go mod tidy
 go run main.go
 ```
 
-The server will start on `http://localhost:8080`
+The server will:
+- Connect to MongoDB
+- Start on `http://localhost:8080`
+- Display connection status
+
+### Verifying MongoDB Connection
+
+The API will attempt to connect to MongoDB on startup. If connection fails, the application will exit with an error message. Ensure MongoDB is running before starting the API.
+
+### Verifying Data in MongoDB
+
+You can verify data stored in MongoDB using:
+
+1. **MongoDB Compass** (GUI):
+   - Connect to your MongoDB instance
+   - Navigate to `task_manager` database
+   - View the `tasks` collection
+
+2. **MongoDB Shell**:
+```bash
+mongosh
+use task_manager
+db.tasks.find().pretty()
+```
+
+3. **Direct Query**:
+```javascript
+db.tasks.find({ status: "pending" })
+db.tasks.findOne({ _id: ObjectId("507f1f77bcf86cd799439011") })
+```
 
 ## Testing with Postman
 
@@ -295,11 +391,13 @@ The server will start on `http://localhost:8080`
 
 #### Get Task by ID
 - Method: GET
-- URL: `{{base_url}}/tasks/1`
+- URL: `{{base_url}}/tasks/507f1f77bcf86cd799439011`
+  - Note: Use the actual ObjectID string returned when creating a task
 
 #### Update Task
 - Method: PUT
-- URL: `{{base_url}}/tasks/1`
+- URL: `{{base_url}}/tasks/507f1f77bcf86cd799439011`
+  - Note: Use the actual ObjectID string returned when creating a task
 - Headers: `Content-Type: application/json`
 - Body (raw JSON):
 ```json
@@ -310,12 +408,46 @@ The server will start on `http://localhost:8080`
 
 #### Delete Task
 - Method: DELETE
-- URL: `{{base_url}}/tasks/1`
+- URL: `{{base_url}}/tasks/507f1f77bcf86cd799439011`
+  - Note: Use the actual ObjectID string returned when creating a task
 
 ## Notes
 
-- The API uses in-memory storage. All data will be lost when the server restarts.
-- Task IDs are auto-incremented starting from 1.
-- The `created_at` and `updated_at` fields are automatically managed by the system.
-- All endpoints return JSON responses.
+- **Persistent Storage**: The API uses MongoDB for persistent data storage. All data persists across server restarts.
+- **Task IDs**: Task IDs are MongoDB ObjectIDs (24-character hexadecimal strings) automatically generated by MongoDB.
+- **Timestamps**: The `created_at` and `updated_at` fields are automatically managed by the system.
+- **Data Persistence**: All tasks are stored in the `tasks` collection in the configured MongoDB database.
+- **Backward Compatibility**: The API maintains the same endpoint structure and response format as the in-memory version, with the only change being the ID format (ObjectID string instead of integer).
+- **Error Handling**: All MongoDB operations include proper error handling for network errors, database errors, and validation errors.
+- **All endpoints return JSON responses**.
+
+## MongoDB Integration Details
+
+### Database Structure
+
+- **Database**: `task_manager` (configurable via `MONGODB_DB` environment variable)
+- **Collection**: `tasks`
+- **Document Structure**: Each task is stored as a document with the following fields:
+  - `_id`: MongoDB ObjectID (primary key)
+  - `title`: String
+  - `description`: String
+  - `due_date`: ISODate
+  - `status`: String (pending, in_progress, completed)
+  - `created_at`: ISODate
+  - `updated_at`: ISODate
+
+### Connection Management
+
+- The API establishes a connection to MongoDB on startup
+- Connection is maintained throughout the application lifecycle
+- Proper connection cleanup on application shutdown
+- Connection timeout: 10 seconds
+
+### Error Handling
+
+The API handles various MongoDB-related errors:
+- **Connection Errors**: Fails fast on startup if MongoDB is unavailable
+- **Query Errors**: Returns appropriate HTTP status codes (404 for not found, 500 for server errors)
+- **Validation Errors**: Returns 400 for invalid ObjectID formats
+- **Network Errors**: Proper timeout handling for all database operations
 

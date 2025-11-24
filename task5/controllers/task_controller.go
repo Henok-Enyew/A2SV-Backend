@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 	"task5/data"
 	"task5/models"
 
@@ -20,7 +19,16 @@ func NewTaskController(taskService *data.TaskService) *TaskController {
 }
 
 func (tc *TaskController) GetAllTasks(c *gin.Context) {
-	tasks := tc.taskService.GetAllTasks()
+	tasks, err := tc.taskService.GetAllTasks()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "failed to retrieve tasks",
+			"error":   err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   tasks,
@@ -29,18 +37,15 @@ func (tc *TaskController) GetAllTasks(c *gin.Context) {
 }
 
 func (tc *TaskController) GetTaskByID(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "invalid task ID",
-		})
-		return
-	}
+	id := c.Param("id")
 
 	task, err := tc.taskService.GetTaskByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		statusCode := http.StatusNotFound
+		if err.Error() == "invalid task ID format" {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{
 			"status":  "error",
 			"message": err.Error(),
 		})
@@ -73,7 +78,16 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 		return
 	}
 
-	task := tc.taskService.CreateTask(req)
+	task, err := tc.taskService.CreateTask(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "failed to create task",
+			"error":   err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"status":  "success",
 		"message": "task created successfully",
@@ -82,14 +96,7 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 }
 
 func (tc *TaskController) UpdateTask(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "invalid task ID",
-		})
-		return
-	}
+	id := c.Param("id")
 
 	var req models.UpdateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -111,7 +118,11 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 
 	task, err := tc.taskService.UpdateTask(id, req)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		statusCode := http.StatusNotFound
+		if err.Error() == "invalid task ID format" {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{
 			"status":  "error",
 			"message": err.Error(),
 		})
@@ -126,18 +137,15 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 }
 
 func (tc *TaskController) DeleteTask(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "invalid task ID",
-		})
-		return
-	}
+	id := c.Param("id")
 
-	err = tc.taskService.DeleteTask(id)
+	err := tc.taskService.DeleteTask(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		statusCode := http.StatusNotFound
+		if err.Error() == "invalid task ID format" {
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, gin.H{
 			"status":  "error",
 			"message": err.Error(),
 		})

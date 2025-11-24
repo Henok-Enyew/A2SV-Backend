@@ -11,7 +11,7 @@ func SetupRouter() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
-	taskService := data.NewTaskService()
+	taskService := data.NewTaskService(data.TaskCollection)
 	taskController := controllers.NewTaskController(taskService)
 
 	r.GET("/tasks", taskController.GetAllTasks)
