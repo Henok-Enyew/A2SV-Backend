@@ -4,7 +4,7 @@
 
 This is a RESTful API for managing tasks built with Go and Gin Framework. The API provides endpoints for creating, reading, updating, and deleting tasks.
 
-**Base URL**: `http://localhost:8080/api/v1`
+**Base URL**: `http://localhost:8080`
 
 ## Endpoints
 
@@ -271,7 +271,7 @@ The server will start on `http://localhost:8080`
 ### Collection Setup
 
 1. Create a new Postman collection named "Task Management API"
-2. Set the base URL variable: `{{base_url}}` = `http://localhost:8080/api/v1`
+2. Set the base URL variable: `{{base_url}}` = `http://localhost:8080`
 
 ### Example Requests
 

@@ -14,17 +14,11 @@ func SetupRouter() *gin.Engine {
 	taskService := data.NewTaskService()
 	taskController := controllers.NewTaskController(taskService)
 
-	api := r.Group("/api/v1")
-	{
-		tasks := api.Group("/tasks")
-		{
-			tasks.GET("", taskController.GetAllTasks)
-			tasks.GET("/:id", taskController.GetTaskByID)
-			tasks.POST("", taskController.CreateTask)
-			tasks.PUT("/:id", taskController.UpdateTask)
-			tasks.DELETE("/:id", taskController.DeleteTask)
-		}
-	}
+	r.GET("/tasks", taskController.GetAllTasks)
+	r.GET("/tasks/:id", taskController.GetTaskByID)
+	r.POST("/tasks", taskController.CreateTask)
+	r.PUT("/tasks/:id", taskController.UpdateTask)
+	r.DELETE("/tasks/:id", taskController.DeleteTask)
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
