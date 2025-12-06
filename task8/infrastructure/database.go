@@ -1,4 +1,4 @@
-package data
+package infrastructure
 
 import (
 	"context"
@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	Client     *mongo.Client
-	Database   *mongo.Database
+	Client         *mongo.Client
+	Database       *mongo.Database
 	TaskCollection *mongo.Collection
+	UserCollection *mongo.Collection
 )
 
 func ConnectDB(uri string, dbName string) error {
@@ -21,7 +22,7 @@ func ConnectDB(uri string, dbName string) error {
 	defer cancel()
 
 	clientOptions := options.Client().ApplyURI(uri)
-	
+
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return fmt.Errorf("failed to connect to MongoDB: %w", err)
@@ -35,6 +36,7 @@ func ConnectDB(uri string, dbName string) error {
 	Client = client
 	Database = client.Database(dbName)
 	TaskCollection = Database.Collection("tasks")
+	UserCollection = Database.Collection("users")
 
 	log.Println("Successfully connected to MongoDB!")
 	return nil
@@ -48,6 +50,4 @@ func DisconnectDB() error {
 	}
 	return nil
 }
-
-
 

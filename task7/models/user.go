@@ -28,3 +28,5 @@ type PromoteRequest struct {
 	Username string `json:"username" binding:"required"`
 }
 
+
+

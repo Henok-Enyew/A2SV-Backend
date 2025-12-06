@@ -3,13 +3,20 @@ package middleware
 import (
 	"net/http"
 	"strings"
-	"task7/controllers"
+	"task8/infrastructure"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+type AuthMiddleware struct {
+	tokenGenerator *infrastructure.JWTGenerator
+}
+
+func NewAuthMiddleware(tokenGenerator *infrastructure.JWTGenerator) *AuthMiddleware {
+	return &AuthMiddleware{tokenGenerator: tokenGenerator}
+}
+
+func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -32,7 +39,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-		claims, err := controllers.ValidateJWT(tokenString)
+		claims, err := m.tokenGenerator.Validate(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  "error",
@@ -50,7 +57,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func AdminMiddleware() gin.HandlerFunc {
+func (m *AuthMiddleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists {
@@ -74,6 +81,4 @@ func AdminMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-
 
